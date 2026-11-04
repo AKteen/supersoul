@@ -6,17 +6,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, get_current_user_beacon
 from app.models import Room, User
-from app.schemas import JoinResponse, RoomCreateRequest, RoomOut
+from app.schemas import CallSessionOut, JoinResponse, ParticipantOut, RoomCreateRequest, RoomOut
 from app.services import agora
 from app.services.agora import AgoraAPIError, AgoraConfigError
+from app.services.presence import heartbeat_presence, join_presence, leave_presence, prune_stale
+from app.services.rate_limit import check_rate_limit
+from app.services.sessions import (
+    add_participant,
+    close_session_if_empty,
+    get_or_open_session,
+    list_sessions,
+    mark_left,
+    mark_users_left,
+)
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
 def _new_slug() -> str:
     return secrets.token_urlsafe(9).replace("_", "").replace("-", "")[:12].lower()
+
+
+async def _get_active_room(db: AsyncSession, slug: str) -> Room:
+    result = await db.execute(select(Room).where(Room.slug == slug))
+    room = result.scalar_one_or_none()
+    if room is None or not room.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    return room
 
 
 @router.post("", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
@@ -66,10 +84,7 @@ async def my_rooms(
 
 @router.get("/{slug}", response_model=RoomOut)
 async def get_room(slug: str, db: AsyncSession = Depends(get_db)) -> RoomOut:
-    result = await db.execute(select(Room).where(Room.slug == slug))
-    room = result.scalar_one_or_none()
-    if room is None or not room.is_active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    room = await _get_active_room(db, slug)
     return RoomOut.from_room(room)
 
 
@@ -79,10 +94,17 @@ async def join_room(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JoinResponse:
-    result = await db.execute(select(Room).where(Room.slug == slug))
-    room = result.scalar_one_or_none()
-    if room is None or not room.is_active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    await check_rate_limit(f"rl:join:{current_user.id}", limit=20)
+    room = await _get_active_room(db, slug)
+
+    stale = await prune_stale(slug)
+    await mark_users_left(db, room.id, stale)
+
+    await join_presence(slug, current_user.id, room.max_participants)
+
+    session = await get_or_open_session(db, room)
+    await add_participant(db, session, current_user.id)
+    await db.commit()
 
     settings = get_settings()
     try:
@@ -99,4 +121,65 @@ async def join_room(
         chat_token=chat_token,
         chat_user=current_user.chat_username,
         chat_room_id=room.chat_room_id,
+        session_id=session.id,
     )
+
+
+@router.post("/{slug}/heartbeat")
+async def heartbeat(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    room = await _get_active_room(db, slug)
+    stale = await prune_stale(slug)
+    await mark_users_left(db, room.id, stale)
+    await heartbeat_presence(slug, current_user.id)
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/{slug}/leave")
+async def leave_room(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_beacon),
+) -> dict[str, str]:
+    room = await _get_active_room(db, slug)
+    remaining = await leave_presence(slug, current_user.id)
+    await mark_left(db, room.id, current_user.id)
+    await close_session_if_empty(db, room.id, remaining)
+    await db.commit()
+    return {"status": "left"}
+
+
+@router.get("/{slug}/sessions", response_model=list[CallSessionOut])
+async def room_sessions(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[CallSessionOut]:
+    room = await _get_active_room(db, slug)
+    sessions = await list_sessions(db, room)
+    out: list[CallSessionOut] = []
+    for s in sessions:
+        parts = [
+            ParticipantOut(
+                user_id=p.user_id,
+                name=p.user.name if p.user else "Unknown",
+                joined_at=p.joined_at,
+                left_at=p.left_at,
+            )
+            for p in s.participants
+        ]
+        out.append(
+            CallSessionOut(
+                id=s.id,
+                started_at=s.started_at,
+                ended_at=s.ended_at,
+                recording_url=s.recording_url,
+                transcript=s.transcript,
+                participants=parts,
+            )
+        )
+    return out

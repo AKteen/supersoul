@@ -1,6 +1,6 @@
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from app.schemas import LoginRequest, SignupRequest, TokenResponse, UserOut
 from app.security import create_access_token, hash_password, verify_password
 from app.services import agora
 from app.services.agora import AgoraAPIError, AgoraConfigError
+from app.services.rate_limit import check_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,7 +61,13 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Tok
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(
+    body: LoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    client_ip = request.client.host if request.client else "unknown"
+    await check_rate_limit(f"rl:login:{client_ip}", limit=10)
     result = await db.execute(select(User).where(User.email == body.email.lower()))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):

@@ -131,6 +131,9 @@ function DashboardInner() {
                   <Link href={room.share_path} className="underline underline-offset-2">
                     Open
                   </Link>
+                  <Link href={`/room/${room.slug}/history`} className="underline underline-offset-2">
+                    History
+                  </Link>
                 </div>
               </li>
             ))}

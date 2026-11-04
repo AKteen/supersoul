@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator, Iterator
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -13,6 +14,7 @@ from app.config import get_settings
 from app.db import Base, get_db
 from app.main import app
 from app.security import create_access_token
+from app.services import redis_client
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -24,9 +26,30 @@ def agora_env() -> Iterator[None]:
     os.environ["AGORA_APP_CERTIFICATE"] = "f647e5d4c3b2a1808976f5e4d3c2b1a0"
     os.environ["AGORA_CHAT_REST_HOST"] = "https://chat.example.com"
     os.environ["JWT_SECRET"] = "test-jwt-secret-phase2"
+    os.environ["REDIS_URL"] = "redis://localhost:6379/15"
     get_settings.cache_clear()
+    redis_client.get_redis.cache_clear()
     yield
     get_settings.cache_clear()
+    redis_client.get_redis.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def fake_redis() -> Iterator[None]:
+    server = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    redis_client.get_redis.cache_clear()
+
+    def _get() -> fakeredis.aioredis.FakeRedis:
+        return server
+
+    with patch.object(redis_client, "get_redis", _get):
+        # Also patch modules that imported get_redis at load time via their own imports.
+        with (
+            patch("app.services.presence.get_redis", _get),
+            patch("app.services.rate_limit.get_redis", _get),
+        ):
+            yield
+    redis_client.get_redis.cache_clear()
 
 
 @pytest.fixture(scope="session")

@@ -72,7 +72,28 @@ export type JoinPayload = {
   chat_token: string;
   chat_user: string;
   chat_room_id: string | null;
+  session_id?: string | null;
 };
+
+export type CallSession = {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  recording_url: string | null;
+  transcript: string | null;
+  participants: {
+    user_id: string;
+    name: string;
+    joined_at: string;
+    left_at: string | null;
+  }[];
+};
+
+export function leaveRoomBeacon(slug: string, token: string): void {
+  const url = `${API_URL}/rooms/${slug}/leave?access_token=${encodeURIComponent(token)}`;
+  // sendBeacon cannot set Authorization; query token is supported by the API.
+  navigator.sendBeacon(url);
+}
 
 export const api = {
   signup: (body: { email: string; password: string; name: string }) =>
@@ -86,4 +107,9 @@ export const api = {
   getRoom: (slug: string) => request<Room>(`/rooms/${slug}`, {}, false),
   joinRoom: (slug: string) =>
     request<JoinPayload>(`/rooms/${slug}/join`, { method: "POST" }),
+  heartbeat: (slug: string) =>
+    request<{ status: string }>(`/rooms/${slug}/heartbeat`, { method: "POST" }),
+  leaveRoom: (slug: string) =>
+    request<{ status: string }>(`/rooms/${slug}/leave`, { method: "POST" }),
+  roomSessions: (slug: string) => request<CallSession[]>(`/rooms/${slug}/sessions`),
 };

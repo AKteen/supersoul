@@ -71,3 +71,25 @@ class JoinResponse(BaseModel):
     chat_token: str
     chat_user: str
     chat_room_id: str | None
+    session_id: uuid.UUID | None = None
+
+
+class ParticipantOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
+    joined_at: datetime
+    left_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class CallSessionOut(BaseModel):
+    id: uuid.UUID
+    started_at: datetime
+    ended_at: datetime | None
+    recording_url: str | None
+    transcript: str | None
+    participants: list[ParticipantOut]
+
+    model_config = {"from_attributes": True}
+

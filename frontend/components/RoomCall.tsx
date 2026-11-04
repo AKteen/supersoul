@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Controls } from "@/components/Controls";
 import { VideoGrid } from "@/components/VideoGrid";
-import { ApiError, JoinPayload, Room, api } from "@/lib/api";
+import { ApiError, JoinPayload, Room, api, leaveRoomBeacon } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 type RemoteVideo = {
   uid: string | number;
@@ -37,7 +38,20 @@ export default function RoomCall({ slug }: RoomCallProps) {
   const [status, setStatus] = useState("Connecting…");
   const [error, setError] = useState<string | null>(null);
 
+  const leftRef = useRef(false);
+
+  const notifyLeave = useCallback(async () => {
+    if (leftRef.current) return;
+    leftRef.current = true;
+    try {
+      await api.leaveRoom(slug);
+    } catch {
+      /* best effort */
+    }
+  }, [slug]);
+
   const cleanup = useCallback(async () => {
+    await notifyLeave();
     const tracks = localTracksRef.current;
     if (tracks) {
       for (const track of tracks) {
@@ -58,7 +72,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
       }
       clientRef.current = null;
     }
-  }, []);
+  }, [notifyLeave]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +154,26 @@ export default function RoomCall({ slug }: RoomCallProps) {
       void cleanup();
     };
   }, [slug, cleanup]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void api.heartbeat(slug).catch(() => undefined);
+    }, 30_000);
+
+    const onHide = () => {
+      const token = getToken();
+      if (token && !leftRef.current) {
+        leftRef.current = true;
+        leaveRoomBeacon(slug, token);
+      }
+    };
+    window.addEventListener("pagehide", onHide);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", onHide);
+    };
+  }, [slug]);
 
   const toggleMic = useCallback(async () => {
     const tracks = localTracksRef.current;
