@@ -64,6 +64,16 @@ export type Room = {
   share_path: string;
 };
 
+export type JoinPayload = {
+  app_id: string;
+  channel: string;
+  rtc_token: string;
+  uid: number;
+  chat_token: string;
+  chat_user: string;
+  chat_room_id: string | null;
+};
+
 export const api = {
   signup: (body: { email: string; password: string; name: string }) =>
     request<TokenResponse>("/auth/signup", { method: "POST", body: JSON.stringify(body) }, false),
@@ -74,4 +84,6 @@ export const api = {
     request<Room>("/rooms", { method: "POST", body: JSON.stringify(body) }),
   myRooms: () => request<Room[]>("/rooms/mine"),
   getRoom: (slug: string) => request<Room>(`/rooms/${slug}`, {}, false),
+  joinRoom: (slug: string) =>
+    request<JoinPayload>(`/rooms/${slug}/join`, { method: "POST" }),
 };
