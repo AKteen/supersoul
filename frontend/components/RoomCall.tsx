@@ -9,6 +9,7 @@ import AgoraRTC, {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ChatPanel } from "@/components/ChatPanel";
 import { Controls } from "@/components/Controls";
 import { VideoGrid } from "@/components/VideoGrid";
 import { ApiError, JoinPayload, Room, api } from "@/lib/api";
@@ -200,14 +201,31 @@ export default function RoomCall({ slug }: RoomCallProps) {
         </p>
       ) : null}
 
-      <VideoGrid tiles={tiles} />
-      <Controls
-        micOn={micOn}
-        camOn={camOn}
-        onToggleMic={() => void toggleMic()}
-        onToggleCam={() => void toggleCam()}
-        onLeave={() => void leave()}
-      />
+      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex flex-col gap-4">
+          <VideoGrid tiles={tiles} />
+          <Controls
+            micOn={micOn}
+            camOn={camOn}
+            onToggleMic={() => void toggleMic()}
+            onToggleCam={() => void toggleCam()}
+            onLeave={() => void leave()}
+          />
+        </div>
+        {joinInfo?.chat_room_id ? (
+          <ChatPanel
+            slug={slug}
+            chatUser={joinInfo.chat_user}
+            chatToken={joinInfo.chat_token}
+            chatRoomId={joinInfo.chat_room_id}
+          />
+        ) : (
+          <aside className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-800">
+            Chat unavailable — room has no Agora chat room id. Enable Chat in Console and set
+            AGORA_CHAT_* env vars.
+          </aside>
+        )}
+      </div>
     </main>
   );
 }
