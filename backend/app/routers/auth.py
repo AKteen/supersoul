@@ -10,6 +10,8 @@ from app.deps import get_current_user
 from app.models import User
 from app.schemas import LoginRequest, SignupRequest, TokenResponse, UserOut
 from app.security import create_access_token, hash_password, verify_password
+from app.services import agora
+from app.services.agora import AgoraAPIError, AgoraConfigError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,6 +39,18 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Tok
     )
     db.add(user)
     try:
+        await db.flush()
+        try:
+            await agora.register_chat_user(user.chat_username)
+        except AgoraConfigError:
+            # Chat not configured yet — allow local auth; room create will still need Chat.
+            pass
+        except AgoraAPIError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Agora Chat registration failed: {exc}",
+            ) from exc
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()

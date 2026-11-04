@@ -1,0 +1,3 @@
+Vendored from https://github.com/AgoraIO/Tools
+DynamicKey/AgoraDynamicKey/python3/src (AccessToken2 / RtcTokenBuilder2 / ChatTokenBuilder2).
+Copyright (c) Agora.io, Inc. Used for official token generation only.
