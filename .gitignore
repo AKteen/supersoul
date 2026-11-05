@@ -33,6 +33,21 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Local databases (production uses Postgres)
+*.sqlite
+*.sqlite3
+*.db
+
+# Deploy tooling
+.vercel/
+
+# Keys
+*.pem
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
 # Misc
 *.log
 dist/

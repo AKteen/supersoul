@@ -77,14 +77,19 @@ See [`.env.example`](.env.example). Never commit `.env`.
 - Nginx `least_conn` load-balances `api1` + `api2`.
 - Add more API services behind the same upstream to scale horizontally.
 
-## Deploy (HTTPS)
+## Deploy (Vercel + Render)
 
-1. **EC2 (or any Linux VM):** install Docker, clone repo, create `.env`, open ports 80/443.
-2. Put **Caddy** or **Nginx + Certbot** in front for TLS (camera/mic require HTTPS off localhost).
-3. Point DNS at the box; set `CORS_ORIGINS` and `NEXT_PUBLIC_API_URL` to `https://your.domain/api`.
-4. Rebuild web with production `NEXT_PUBLIC_*` args.
-5. Optional: host frontend on **Vercel** and API stack on EC2; set Vercel env + CORS accordingly.
-6. Test with two real devices on the shared room link.
+Postgres only. Render may hand the API a `postgres://` URL; startup rewrites it to `postgresql+asyncpg` and enables SSL when `sslmode=require` is set. The API container runs `alembic upgrade head` before uvicorn.
+
+**Render** (API, Postgres, Redis): Blueprint is [`render.yaml`](render.yaml). In the dashboard, fill `JWT_SECRET`, `CORS_ORIGINS`, and the `AGORA_*` values. `CORS_ORIGINS` is the Vercel origin, for example `https://supersoul.vercel.app`.
+
+**Vercel** (Next.js): set the project root to `frontend`. Set these at build time:
+
+- `NEXT_PUBLIC_API_URL` = `https://<render-service>.onrender.com`
+- `NEXT_PUBLIC_AGORA_APP_ID`
+- `NEXT_PUBLIC_AGORA_CHAT_APP_KEY`
+
+Do not put `AGORA_APP_CERTIFICATE` or `JWT_SECRET` on Vercel. Camera and microphone need the HTTPS URLs both hosts provide. Test with two devices on the same room link.
 
 ## API (main)
 
