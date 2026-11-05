@@ -24,10 +24,10 @@ function HistoryInner({ slug }: { slug: string }) {
   }, [slug]);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl px-6 py-10">
-      <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">SuperSoul</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Call history</h1>
-      <p className="mt-1 text-sm text-zinc-500">{title}</p>
+    <main className="mx-auto min-h-screen w-full max-w-3xl px-6 py-10 text-white">
+      <p className="text-sm font-medium">SuperSoul</p>
+      <h1 className="mt-6 text-3xl font-medium tracking-tight">Call history</h1>
+      <p className="mt-1 text-sm text-zinc-400">{title}</p>
       <p className="mt-4 text-sm">
         <Link href={`/room/${slug}`} className="underline underline-offset-2">
           Back to room
@@ -45,7 +45,7 @@ function HistoryInner({ slug }: { slug: string }) {
       ) : (
         <ul className="mt-8 space-y-4">
           {sessions.map((s) => (
-            <li key={s.id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <li key={s.id} className="rounded-[28px] bg-[#141414] p-4 ring-1 ring-white/10">
               <p className="font-medium">
                 {new Date(s.started_at).toLocaleString()}
                 {s.ended_at ? ` → ${new Date(s.ended_at).toLocaleString()}` : " (active)"}

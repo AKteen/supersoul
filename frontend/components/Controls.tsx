@@ -1,37 +1,74 @@
 "use client";
 
+import type { ReactNode } from "react";
+
+import { Icon } from "@/components/Icon";
+
 type ControlsProps = {
   micOn: boolean;
   camOn: boolean;
+  chatOpen: boolean;
   onToggleMic: () => void;
   onToggleCam: () => void;
+  onToggleChat: () => void;
   onLeave: () => void;
 };
 
-export function Controls({ micOn, camOn, onToggleMic, onToggleCam, onLeave }: ControlsProps) {
+function RoundButton({
+  label,
+  onClick,
+  inverted,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  inverted?: boolean;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  const tone = danger
+    ? "bg-[#dc143c] text-white hover:bg-[#b01030]"
+    : inverted
+      ? "bg-white text-black"
+      : "bg-[#2a2a2a] text-white hover:bg-[#343434]";
+
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3">
-      <button
-        type="button"
-        onClick={onToggleMic}
-        className="rounded border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-      >
-        {micOn ? "Mute" : "Unmute"}
-      </button>
-      <button
-        type="button"
-        onClick={onToggleCam}
-        className="rounded border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-      >
-        {camOn ? "Camera off" : "Camera on"}
-      </button>
-      <button
-        type="button"
-        onClick={onLeave}
-        className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white"
-      >
-        Leave
-      </button>
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Controls({
+  micOn,
+  camOn,
+  chatOpen,
+  onToggleMic,
+  onToggleCam,
+  onToggleChat,
+  onLeave,
+}: ControlsProps) {
+  return (
+    <div className="flex items-center gap-3 rounded-full bg-[#1a1a1a] px-4 py-3 shadow-lg ring-1 ring-white/10">
+      <RoundButton label={micOn ? "Mute" : "Unmute"} onClick={onToggleMic} inverted={!micOn}>
+        <Icon name={micOn ? "mic" : "mic_off"} filled={!micOn} />
+      </RoundButton>
+      <RoundButton label={camOn ? "Turn camera off" : "Turn camera on"} onClick={onToggleCam} inverted={!camOn}>
+        <Icon name={camOn ? "videocam" : "videocam_off"} filled={!camOn} />
+      </RoundButton>
+      <RoundButton label={chatOpen ? "Hide chat" : "Show chat"} onClick={onToggleChat} inverted={chatOpen}>
+        <Icon name="chat" filled={chatOpen} />
+      </RoundButton>
+      <RoundButton label="Leave" onClick={onLeave} danger>
+        <Icon name="call_end" filled />
+      </RoundButton>
     </div>
   );
 }

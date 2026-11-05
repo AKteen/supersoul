@@ -1,6 +1,8 @@
 "use client";
 
 import AgoraChat from "agora-chat";
+
+import { Icon } from "@/components/Icon";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
@@ -24,31 +26,72 @@ function shortName(userId: string): string {
   return userId.length > 8 ? `${userId.slice(0, 6)}…` : userId;
 }
 
+function errorText(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err) return err;
+  if (err && typeof err === "object" && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return "Failed to connect";
+}
+
+let activeClose: (() => Promise<void>) | null = null;
+
+async function takeOver(close: () => Promise<void>) {
+  const previous = activeClose;
+  activeClose = close;
+  if (previous && previous !== close) {
+    try {
+      await previous();
+    } catch {
+      /* the previous login is already gone */
+    }
+  }
+}
+
 export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelProps) {
   const connRef = useRef<InstanceType<typeof AgoraChat.connection> | null>(null);
+  const chatReadyRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [status, setStatus] = useState("Connecting chat…");
-  const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"loading" | "ready" | "failed">("loading");
   const [ready, setReady] = useState(false);
 
   const appKey = process.env.NEXT_PUBLIC_AGORA_CHAT_APP_KEY ?? "";
 
   useEffect(() => {
     if (!appKey) {
-      setError("NEXT_PUBLIC_AGORA_CHAT_APP_KEY is not set");
-      setStatus("Chat unavailable");
+      setPhase("failed");
       return;
     }
 
     let cancelled = false;
+    let closing = false;
+    let kicks = 0;
     const handlerId = `room-chat-${chatRoomId}`;
     const conn = new AgoraChat.connection({
       appKey,
-      autoReconnectNumMax: 5,
+      autoReconnectNumMax: 0,
+      isFixedDeviceId: true,
     });
     connRef.current = conn;
+
+    const close = async () => {
+      closing = true;
+      try {
+        await conn.leaveChatRoom({ roomId: chatRoomId });
+      } catch {
+        /* ignore */
+      }
+      try {
+        conn.close();
+      } catch {
+        /* ignore */
+      }
+      if (activeClose === close) activeClose = null;
+    };
 
     const pushMessage = (msg: { id?: string; from?: string; msg?: string; time?: number }) => {
       const text = msg.msg ?? "";
@@ -74,23 +117,41 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
       try {
         const joined = await api.joinRoom(slug);
         await conn.renewToken(joined.chat_token);
-        setStatus("Chat connected");
-        setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Token renew failed");
-        setStatus("Chat reconnecting…");
+        console.warn("Chat token renew failed", errorText(err));
+        if (!cancelled) {
+          chatReadyRef.current = false;
+          setReady(false);
+          setPhase("failed");
+        }
       }
     };
 
+    const loginWaiters: Array<() => void> = [];
+    const waitForLogin = () =>
+      new Promise<void>((resolve) => {
+        if (conn.isOpened()) {
+          resolve();
+          return;
+        }
+        loginWaiters.push(resolve);
+      });
+
     conn.addEventHandler(handlerId, {
       onConnected: () => {
-        if (!cancelled) setStatus("Chat connected");
+        loginWaiters.splice(0).forEach((resolve) => resolve());
       },
       onDisconnected: () => {
-        if (!cancelled) {
-          setReady(false);
-          setStatus("Chat disconnected");
+        if (cancelled || closing || !chatReadyRef.current) return;
+        chatReadyRef.current = false;
+        setReady(false);
+        kicks += 1;
+        if (kicks > 1) {
+          setPhase("failed");
+          return;
         }
+        setPhase("loading");
+        void start();
       },
       onTextMessage: (message) => {
         if (message.chatType === "chatRoom" && message.to === chatRoomId) {
@@ -107,54 +168,82 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
         void renew();
       },
       onError: (err) => {
-        if (!cancelled) {
-          setError(typeof err?.message === "string" ? err.message : "Chat error");
-        }
+        console.warn("Chat connection error", errorText(err));
       },
     });
 
     async function start() {
-      try {
-        await conn.open({
-          user: chatUser,
-          accessToken: chatToken,
-        });
-        if (cancelled) return;
-
-        await conn.joinChatRoom({ roomId: chatRoomId });
-        if (cancelled) return;
-
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt += 1) {
         try {
-          const history = await conn.getHistoryMessages({
-            targetId: chatRoomId,
-            chatType: "chatRoom",
-            pageSize: 20,
-            searchDirection: "up",
-          });
-          const list = (history?.messages ?? []) as Array<{
-            id?: string;
-            from?: string;
-            msg?: string;
-            time?: number;
-            type?: string;
-          }>;
-          for (const item of [...list].reverse()) {
-            if (item.type === "txt" || item.msg) pushMessage(item);
-          }
-        } catch {
-          // History may be disabled for chatrooms until enabled in Console;
-          // join still delivers recent messages via onTextMessage.
-        }
+          await takeOver(close);
+          if (cancelled) return;
 
-        if (!cancelled) {
-          setReady(true);
-          setStatus("Chat connected");
+          const opened = conn.open({
+            user: chatUser,
+            accessToken: chatToken,
+          });
+          await Promise.race([
+            Promise.all([opened, waitForLogin()]),
+            new Promise((_, reject) => {
+              window.setTimeout(() => reject(new Error("timeout")), 12000);
+            }),
+          ]);
+          if (cancelled) return;
+
+          await conn.joinChatRoom({ roomId: chatRoomId });
+          if (cancelled) return;
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn("Chat login attempt failed", errorText(err));
+          try {
+            conn.close();
+          } catch {
+            /* ignore */
+          }
+          if (attempt < 2 && !cancelled) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to connect chat");
-          setStatus("Chat failed");
+      }
+
+      if (cancelled) return;
+      if (lastError) {
+        console.warn("Chat failed to connect", errorText(lastError));
+        chatReadyRef.current = false;
+        setReady(false);
+        setPhase("failed");
+        return;
+      }
+
+      try {
+        const history = await conn.getHistoryMessages({
+          targetId: chatRoomId,
+          chatType: "chatRoom",
+          pageSize: 20,
+          searchDirection: "up",
+        });
+        const list = (history?.messages ?? []) as Array<{
+          id?: string;
+          from?: string;
+          msg?: string;
+          time?: number;
+          type?: string;
+        }>;
+        for (const item of [...list].reverse()) {
+          if (item.type === "txt" || item.msg) pushMessage(item);
         }
+      } catch {
+        // History may be disabled for chatrooms until enabled in Console;
+        // join still delivers recent messages via onTextMessage.
+      }
+
+      if (!cancelled) {
+        chatReadyRef.current = true;
+        setReady(true);
+        setPhase("ready");
       }
     }
 
@@ -162,23 +251,14 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
 
     return () => {
       cancelled = true;
+      closing = true;
+      chatReadyRef.current = false;
       try {
         conn.removeEventHandler(handlerId);
       } catch {
         /* ignore */
       }
-      void (async () => {
-        try {
-          await conn.leaveChatRoom({ roomId: chatRoomId });
-        } catch {
-          /* ignore */
-        }
-        try {
-          conn.close();
-        } catch {
-          /* ignore */
-        }
-      })();
+      void close();
       connRef.current = null;
     };
   }, [appKey, chatRoomId, chatToken, chatUser, slug]);
@@ -216,58 +296,54 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
       ]);
       setDraft("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Send failed");
+      console.warn("Chat send failed", errorText(err));
     }
   }
 
   return (
-    <aside className="flex h-full min-h-[280px] w-full flex-col rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-        <p className="text-sm font-medium">Live chat</p>
-        <p className="text-xs text-zinc-500">{status}</p>
+    <aside className="flex h-full min-h-[280px] w-full flex-col overflow-hidden rounded-[28px] bg-[#141414] ring-1 ring-white/10">
+      <div className="border-b border-white/10 px-4 py-4">
+        <p className="text-base font-medium text-white">In-call messages</p>
       </div>
 
-      {error ? (
-        <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{error}</p>
-      ) : null}
-
-      <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
-        {messages.length === 0 ? (
+      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm">
+        {phase !== "ready" ? (
+          <div className="flex items-center gap-2 text-zinc-400">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            {phase === "failed" ? <span>Failed to connect</span> : null}
+          </div>
+        ) : messages.length === 0 ? (
           <p className="text-zinc-500">No messages yet.</p>
         ) : (
           messages.map((m) => (
-            <div key={m.id} className={m.self ? "text-right" : "text-left"}>
-              <p className="text-[11px] text-zinc-500">
-                {m.self ? "You" : shortName(m.from)}
-              </p>
-              <p
-                className={`inline-block rounded px-2 py-1 ${
-                  m.self
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                    : "bg-zinc-100 dark:bg-zinc-800"
-                }`}
-              >
-                {m.text}
-              </p>
+            <div key={m.id} className="flex gap-2">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-[11px] text-white">
+                {(m.self ? "Y" : m.from.slice(0, 1)).toUpperCase()}
+              </span>
+              <div>
+                <p className="text-xs text-zinc-500">{m.self ? "You" : shortName(m.from)}</p>
+                <p className="mt-0.5 text-white">{m.text}</p>
+              </div>
             </div>
           ))
         )}
       </div>
 
-      <form onSubmit={(e) => void onSend(e)} className="flex gap-2 border-t border-zinc-200 p-2 dark:border-zinc-800">
+      <form onSubmit={(e) => void onSend(e)} className="flex gap-2 border-t border-white/10 p-3">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={!ready}
-          placeholder={ready ? "Type a message" : "Connecting…"}
-          className="flex-1 rounded border border-zinc-300 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-200"
+          placeholder={ready ? "Send a message" : "Connecting…"}
+          className="flex-1 rounded-full border border-white/10 bg-[#1c1c1c] px-4 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/30 disabled:opacity-50"
         />
         <button
           type="submit"
+          aria-label="Send"
           disabled={!ready || !draft.trim()}
-          className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black disabled:opacity-40"
         >
-          Send
+          <Icon name="send" filled />
         </button>
       </form>
     </aside>

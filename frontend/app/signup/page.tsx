@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { ApiError, api } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 
@@ -31,32 +32,31 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-6">
-      <div>
-        <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">SuperSoul</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Create account</h1>
-      </div>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
+    <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-6 py-12">
+      <p className="text-sm font-medium tracking-wide text-white">SuperSoul</p>
+      <h1 className="mt-8 text-3xl font-medium tracking-tight text-white">Create account</h1>
+      <p className="mt-2 text-sm text-zinc-400">Your name is shown on the call.</p>
+      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+        <label className="flex flex-col gap-2 text-sm text-zinc-300">
           Name
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-200"
+            className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-white outline-none focus:border-white/30"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-2 text-sm text-zinc-300">
           Email
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-200"
+            className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-white outline-none focus:border-white/30"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-2 text-sm text-zinc-300">
           Password
           <input
             type="password"
@@ -64,21 +64,22 @@ export default function SignupPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-200"
+            className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-white outline-none focus:border-white/30"
           />
         </label>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="text-sm text-zinc-300">{error}</p> : null}
         <button
           type="submit"
           disabled={loading}
-          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-60"
         >
+          <Icon name="person_add" />
           {loading ? "Creating…" : "Sign up"}
         </button>
       </form>
-      <p className="text-sm text-zinc-500">
+      <p className="mt-6 text-sm text-zinc-500">
         Already have an account?{" "}
-        <Link href="/login" className="underline underline-offset-2">
+        <Link href="/login" className="text-white underline underline-offset-2">
           Log in
         </Link>
       </p>

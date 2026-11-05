@@ -84,6 +84,7 @@ export type CallSession = {
   participants: {
     user_id: string;
     name: string;
+    agora_uid: number | null;
     joined_at: string;
     left_at: string | null;
   }[];

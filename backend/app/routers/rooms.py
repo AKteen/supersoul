@@ -45,6 +45,7 @@ async def create_room(
 ) -> RoomOut:
     slug = _new_slug()
     try:
+        await agora.register_chat_user(current_user.chat_username)
         chat_room_id = await agora.create_chat_room(
             name=body.title,
             description=f"SuperSoul room {slug}",
@@ -108,10 +109,13 @@ async def join_room(
 
     settings = get_settings()
     try:
+        await agora.register_chat_user(current_user.chat_username)
         rtc_token = agora.build_rtc_token(channel=room.slug, uid=current_user.agora_uid)
         chat_token = agora.build_chat_user_token(current_user.chat_username)
     except AgoraConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except AgoraAPIError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     return JoinResponse(
         app_id=settings.agora_app_id,
@@ -167,6 +171,7 @@ async def room_sessions(
             ParticipantOut(
                 user_id=p.user_id,
                 name=p.user.name if p.user else "Unknown",
+                agora_uid=p.user.agora_uid if p.user else None,
                 joined_at=p.joined_at,
                 left_at=p.left_at,
             )

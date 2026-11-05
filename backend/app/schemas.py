@@ -77,6 +77,7 @@ class JoinResponse(BaseModel):
 class ParticipantOut(BaseModel):
     user_id: uuid.UUID
     name: str
+    agora_uid: int | None = None
     joined_at: datetime
     left_at: datetime | None
 
