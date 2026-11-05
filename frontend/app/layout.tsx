@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+
+import { APP_VERSION } from "@/lib/version";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +29,12 @@ export default function RootLayout({
         />
         <link rel="icon" href="/supersoul.png" type="image/png" />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <p className="pointer-events-none fixed right-4 top-4 z-50 text-xs tracking-wide text-zinc-500">
+          v{APP_VERSION}
+        </p>
+        {children}
+      </body>
     </html>
   );
 }

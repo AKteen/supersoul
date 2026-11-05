@@ -99,7 +99,7 @@ function DashboardInner() {
 
   return (
     <main className="flex min-h-screen w-full flex-col px-6 py-6 sm:px-10">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between pr-14">
         <Logo />
         <button
           type="button"
