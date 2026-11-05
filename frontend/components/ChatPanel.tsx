@@ -301,8 +301,8 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
   }
 
   return (
-    <aside className="flex h-full min-h-[280px] w-full flex-col overflow-hidden rounded-[28px] bg-[#141414] ring-1 ring-white/10">
-      <div className="border-b border-white/10 px-4 py-4">
+    <aside className="flex h-full min-h-[280px] w-full flex-col overflow-hidden rounded-[28px] bg-[#141414]">
+      <div className="px-4 py-4">
         <p className="text-base font-medium text-white">In-call messages</p>
       </div>
 
@@ -329,13 +329,13 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
         )}
       </div>
 
-      <form onSubmit={(e) => void onSend(e)} className="flex gap-2 border-t border-white/10 p-3">
+      <form onSubmit={(e) => void onSend(e)} className="flex gap-2 p-3">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={!ready}
           placeholder={ready ? "Send a message" : "Connecting…"}
-          className="flex-1 rounded-full border border-white/10 bg-[#1c1c1c] px-4 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/30 disabled:opacity-50"
+          className="flex-1 rounded-full bg-[#1c1c1c] px-4 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
         />
         <button
           type="submit"

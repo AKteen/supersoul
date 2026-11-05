@@ -214,7 +214,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
         setRemotePeers((prev) => {
           const existing = prev.find((peer) => peer.uid === uid);
           if (!existing) {
-            return [...prev, { uid, track: null, micMuted: false, camOff: false, ...patch }];
+            return [...prev, { uid, track: null, micMuted: true, camOff: true, ...patch }];
           }
           return prev.map((peer) => (peer.uid === uid ? { ...peer, ...patch } : peer));
         });
@@ -257,10 +257,23 @@ export default function RoomCall({ slug }: RoomCallProps) {
       await client.join(joined.app_id, joined.channel, joined.rtc_token, joined.uid);
       const tracks = localTracksRef.current;
       if (tracks) {
-        await tracks[0].setEnabled(micOn);
-        await tracks[1].setEnabled(camOn);
-        setLocalVideo(camOn ? tracks[1] : null);
-        await client.publish(tracks);
+        const [micTrack, camTrack] = tracks;
+        const toPublish = [];
+        if (micOn) {
+          await micTrack.setEnabled(true);
+          toPublish.push(micTrack);
+        } else {
+          await micTrack.setEnabled(false);
+        }
+        if (camOn) {
+          await camTrack.setEnabled(true);
+          setLocalVideo(camTrack);
+          toPublish.push(camTrack);
+        } else {
+          await camTrack.setEnabled(false);
+          setLocalVideo(null);
+        }
+        if (toPublish.length > 0) await client.publish(toPublish);
       }
       joinedRef.current = true;
       setInCall(true);
@@ -300,7 +313,16 @@ export default function RoomCall({ slug }: RoomCallProps) {
     const tracks = localTracksRef.current;
     if (!tracks) return;
     const next = !micOn;
-    await tracks[0].setEnabled(next);
+    const track = tracks[0];
+    const client = clientRef.current;
+    if (next) {
+      await track.setEnabled(true);
+      if (client && joinedRef.current && !client.localTracks.includes(track)) {
+        await client.publish(track);
+      }
+    } else {
+      await track.setEnabled(false);
+    }
     setMicOn(next);
   }, [micOn]);
 
@@ -308,9 +330,19 @@ export default function RoomCall({ slug }: RoomCallProps) {
     const tracks = localTracksRef.current;
     if (!tracks) return;
     const next = !camOn;
-    await tracks[1].setEnabled(next);
+    const track = tracks[1];
+    const client = clientRef.current;
+    if (next) {
+      await track.setEnabled(true);
+      setLocalVideo(track);
+      if (client && joinedRef.current && !client.localTracks.includes(track)) {
+        await client.publish(track);
+      }
+    } else {
+      await track.setEnabled(false);
+      setLocalVideo(null);
+    }
     setCamOn(next);
-    setLocalVideo(next ? tracks[1] : null);
   }, [camOn]);
 
   const leave = useCallback(async () => {
@@ -446,7 +478,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
           />
         ) : null}
         {chatOpen && joinInfo && !joinInfo.chat_room_id ? (
-          <aside className="rounded-[28px] bg-[#141414] p-4 text-sm text-zinc-400 ring-1 ring-white/10">
+          <aside className="rounded-[28px] bg-[#141414] p-4 text-sm text-zinc-400">
             Chat is unavailable for this room.
           </aside>
         ) : null}
