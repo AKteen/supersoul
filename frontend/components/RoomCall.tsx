@@ -46,6 +46,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
   const [remotePeers, setRemotePeers] = useState<RemotePeer[]>([]);
   const [selfName, setSelfName] = useState("You");
   const [namesByUid, setNamesByUid] = useState<Record<string, string>>({});
+  const [namesByChat, setNamesByChat] = useState<Record<string, string>>({});
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [status, setStatus] = useState("Ready");
@@ -149,11 +150,18 @@ export default function RoomCall({ slug }: RoomCallProps) {
       setSelfName(me.name);
       const active = sessions.find((session) => session.ended_at === null) ?? sessions[0];
       const next: Record<string, string> = {};
-      for (const person of active?.participants ?? []) {
-        if (person.left_at || person.agora_uid == null) continue;
-        next[String(person.agora_uid)] = person.name;
+      const byChat: Record<string, string> = { [me.id.replace(/-/g, "")]: me.name };
+      for (const session of sessions) {
+        for (const person of session.participants) {
+          const chatId = person.user_id.replace(/-/g, "");
+          if (chatId) byChat[chatId] = person.name;
+          if (session.id === active?.id && !person.left_at && person.agora_uid != null) {
+            next[String(person.agora_uid)] = person.name;
+          }
+        }
       }
       setNamesByUid(next);
+      setNamesByChat(byChat);
     }
 
     void loadNames().catch(() => undefined);
@@ -475,6 +483,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
             chatUser={joinInfo.chat_user}
             chatToken={joinInfo.chat_token}
             chatRoomId={joinInfo.chat_room_id}
+            names={namesByChat}
           />
         ) : null}
         {chatOpen && joinInfo && !joinInfo.chat_room_id ? (
