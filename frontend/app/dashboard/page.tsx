@@ -151,7 +151,7 @@ function DashboardInner() {
             <button
               type="submit"
               disabled={creating}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1c] px-5 py-3 text-sm font-medium text-white hover:bg-[#262626] disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#38bdf8] px-5 py-3 text-sm font-medium text-black hover:bg-[#0ea5e9] disabled:opacity-60"
             >
               <Icon name="videocam" size={16} />
               {creating ? "Starting…" : "New meeting"}
