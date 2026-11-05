@@ -29,6 +29,12 @@ type RoomCallProps = {
   slug: string;
 };
 
+const TAKEN_OVER = "This meeting is open somewhere else, so this window disconnected.";
+
+function isUidConflict(raw: string): boolean {
+  return /UID_CONFLICT|UID_BANNED/i.test(raw);
+}
+
 export default function RoomCall({ slug }: RoomCallProps) {
   const router = useRouter();
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -47,6 +53,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
   const [inCall, setInCall] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [canRejoin, setCanRejoin] = useState(false);
 
   const leftRef = useRef(false);
   const joinedRef = useRef(false);
@@ -176,12 +183,27 @@ export default function RoomCall({ slug }: RoomCallProps) {
     };
   }, [slug]);
 
+  const dropClient = useCallback(async () => {
+    const client = clientRef.current;
+    clientRef.current = null;
+    if (!client) return;
+    client.removeAllListeners();
+    try {
+      await client.leave();
+    } catch {
+      /* already gone */
+    }
+    setRemotePeers([]);
+  }, []);
+
   const enterCall = useCallback(async () => {
     if (joining || joinedRef.current) return;
     setJoining(true);
     setError(null);
+    setCanRejoin(false);
     setStatus("Connecting…");
     try {
+      await dropClient();
       const joined = await api.joinRoom(slug);
       setJoinInfo(joined);
 
@@ -222,6 +244,15 @@ export default function RoomCall({ slug }: RoomCallProps) {
       client.on("user-left", (user) => {
         setRemotePeers((prev) => prev.filter((peer) => peer.uid !== user.uid));
       });
+      client.on("connection-state-change", (cur, _prev, reason) => {
+        if (cur === "DISCONNECTED" && reason === "UID_BANNED") {
+          joinedRef.current = false;
+          setInCall(false);
+          setCanRejoin(true);
+          setError(TAKEN_OVER);
+          setStatus("Ready");
+        }
+      });
 
       await client.join(joined.app_id, joined.channel, joined.rtc_token, joined.uid);
       const tracks = localTracksRef.current;
@@ -237,17 +268,33 @@ export default function RoomCall({ slug }: RoomCallProps) {
     } catch (err) {
       const raw = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Join failed";
       const disabled = /TRACK_IS_DISABLED/i.test(raw);
-      const message = disabled
-        ? /track-mic/i.test(raw) || !micOn
-          ? "The mic is disabled."
-          : "The camera is disabled."
-        : raw;
-      setError(message);
+      if (isUidConflict(raw)) {
+        joinedRef.current = false;
+        setInCall(false);
+        setCanRejoin(true);
+        setError(TAKEN_OVER);
+      } else {
+        const message = disabled
+          ? /track-mic/i.test(raw) || !micOn
+            ? "The mic is disabled."
+            : "The camera is disabled."
+          : raw;
+        setCanRejoin(false);
+        setError(message);
+      }
       setStatus("Ready");
     } finally {
       setJoining(false);
     }
-  }, [camOn, joining, micOn, slug]);
+  }, [camOn, dropClient, joining, micOn, slug]);
+
+  const rejoin = useCallback(async () => {
+    joinedRef.current = false;
+    leftRef.current = false;
+    setInCall(false);
+    await dropClient();
+    await enterCall();
+  }, [dropClient, enterCall]);
 
   const toggleMic = useCallback(async () => {
     const tracks = localTracksRef.current;
@@ -338,11 +385,11 @@ export default function RoomCall({ slug }: RoomCallProps) {
           <ErrorCard message={error} className="mt-4" />
           <button
             type="button"
-            onClick={() => void enterCall()}
+            onClick={() => void (canRejoin ? rejoin() : enterCall())}
             disabled={joining}
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-60"
           >
-            {joining ? "Joining…" : "Join now"}
+            {joining ? "Joining…" : canRejoin ? "Rejoin here" : "Join now"}
             <Icon name="arrow_forward" />
           </button>
           <button
@@ -359,7 +406,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
 
   return (
     <main className="flex min-h-screen flex-col text-white">
-      <header className="flex items-center justify-between px-6 py-4">
+      <header className="flex items-center justify-between py-4 pl-6 pr-16">
         <div className="flex items-center gap-3">
           <Logo />
           <span className="text-zinc-600">/</span>
@@ -371,8 +418,19 @@ export default function RoomCall({ slug }: RoomCallProps) {
         </p>
       </header>
 
-      <div className="px-6">
+      <div className="flex flex-col items-center gap-3 px-6">
         <ErrorCard message={error} />
+        {canRejoin ? (
+          <button
+            type="button"
+            onClick={() => void rejoin()}
+            disabled={joining}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-60"
+          >
+            {joining ? "Joining…" : "Rejoin here"}
+            <Icon name="arrow_forward" />
+          </button>
+        ) : null}
       </div>
 
       <div className={`grid min-h-0 flex-1 gap-4 px-6 pb-4 ${chatOpen ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
