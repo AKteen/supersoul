@@ -20,9 +20,12 @@ type ChatPanelProps = {
   chatUser: string;
   chatToken: string;
   chatRoomId: string;
+  names?: Record<string, string>;
 };
 
-function shortName(userId: string): string {
+function displayName(userId: string, names: Record<string, string>): string {
+  const name = names[userId];
+  if (name) return name;
   return userId.length > 8 ? `${userId.slice(0, 6)}…` : userId;
 }
 
@@ -50,7 +53,7 @@ async function takeOver(close: () => Promise<void>) {
   }
 }
 
-export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelProps) {
+export function ChatPanel({ slug, chatUser, chatToken, chatRoomId, names = {} }: ChatPanelProps) {
   const connRef = useRef<InstanceType<typeof AgoraChat.connection> | null>(null);
   const chatReadyRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -318,10 +321,10 @@ export function ChatPanel({ slug, chatUser, chatToken, chatRoomId }: ChatPanelPr
           messages.map((m) => (
             <div key={m.id} className="flex gap-2">
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-[11px] text-white">
-                {(m.self ? "Y" : m.from.slice(0, 1)).toUpperCase()}
+                {(m.self ? "Y" : displayName(m.from, names).slice(0, 1)).toUpperCase()}
               </span>
               <div>
-                <p className="text-xs text-zinc-500">{m.self ? "You" : shortName(m.from)}</p>
+                <p className="text-xs text-zinc-500">{m.self ? "You" : displayName(m.from, names)}</p>
                 <p className="mt-0.5 text-white">{m.text}</p>
               </div>
             </div>
