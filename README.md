@@ -15,9 +15,9 @@ Use this while developing: Docker only for Postgres + Redis, API and Next.js on 
 
 ```powershell
 cd C:\Users\vipad\SuperSoul
-copy .env.example .env
-# Edit .env: AGORA_APP_ID, AGORA_APP_CERTIFICATE, AGORA_CHAT_*, JWT_SECRET
-# Frontend: set NEXT_PUBLIC_* in frontend\.env.local (or root .env for reference)
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env.local
+# Edit backend\.env (database, JWT, Agora certificate) and frontend\.env.local (NEXT_PUBLIC_* only)
 
 # Infra only — if full compose is heavy, run:
 docker compose up -d postgres redis
@@ -45,8 +45,9 @@ Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```powershell
 cd C:\Users\vipad\SuperSoul
-copy .env.example .env
-# Fill Agora + JWT secrets. For compose UI:
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env.local
+# Fill backend\.env. For compose UI, the web image build args still read the shell:
 # NEXT_PUBLIC_API_URL=http://localhost/api
 # CORS_ORIGINS=http://localhost,http://127.0.0.1
 
@@ -64,7 +65,7 @@ docker compose down
 
 ## Environment
 
-See [`.env.example`](.env.example). Never commit `.env`.
+Backend: [`backend/.env.example`](backend/.env.example). Frontend: [`frontend/.env.example`](frontend/.env.example). Never commit `backend/.env` or `frontend/.env.local`.
 
 | Var | Where |
 |---|---|

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Controls } from "@/components/Controls";
 import { Icon } from "@/components/Icon";
+import { Logo } from "@/components/Logo";
 import { VideoGrid } from "@/components/VideoGrid";
 import { ApiError, JoinPayload, Room, api, leaveRoomBeacon } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -352,7 +353,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
     <main className="flex min-h-screen flex-col text-white">
       <header className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
-          <p className="text-sm font-medium">SuperSoul</p>
+          <Logo />
           <span className="text-zinc-600">/</span>
           <h1 className="text-sm text-zinc-200">{room?.title ?? slug}</h1>
         </div>

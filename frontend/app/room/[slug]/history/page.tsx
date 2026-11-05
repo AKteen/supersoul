@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AuthGuard } from "@/components/AuthGuard";
+import { Logo } from "@/components/Logo";
 import { ApiError, CallSession, api } from "@/lib/api";
 
 function HistoryInner({ slug }: { slug: string }) {
@@ -25,7 +26,7 @@ function HistoryInner({ slug }: { slug: string }) {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-6 py-10 text-white">
-      <p className="text-sm font-medium">SuperSoul</p>
+      <Logo />
       <h1 className="mt-6 text-3xl font-medium tracking-tight">Call history</h1>
       <p className="mt-1 text-sm text-zinc-400">{title}</p>
       <p className="mt-4 text-sm">

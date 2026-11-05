@@ -1,5 +1,8 @@
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+_BACKEND_ENV = Path(__file__).resolve().parents[1] / ".env"
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,10 +27,10 @@ def normalize_database_url(url: str) -> tuple[str, dict]:
 
 
 class Settings(BaseSettings):
-    """App settings loaded from env / .env at repo root."""
+    """App settings from the process environment, then backend/.env."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
+        env_file=str(_BACKEND_ENV),
         env_file_encoding="utf-8",
         extra="ignore",
     )

@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { AuthGuard } from "@/components/AuthGuard";
 import { Icon } from "@/components/Icon";
+import { Logo } from "@/components/Logo";
 import { ApiError, Room, User, api } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 
@@ -99,7 +100,7 @@ function DashboardInner() {
   return (
     <main className="flex min-h-screen w-full flex-col px-6 py-6 sm:px-10">
       <header className="flex items-center justify-between">
-        <p className="text-sm font-medium tracking-wide text-white">SuperSoul</p>
+        <Logo />
         <button
           type="button"
           onClick={logout}

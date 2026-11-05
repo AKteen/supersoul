@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { Logo } from "@/components/Logo";
 import { ApiError, api } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 
@@ -33,7 +34,7 @@ export default function SignupPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-6 py-12">
-      <p className="text-sm font-medium tracking-wide text-white">SuperSoul</p>
+      <Logo />
       <h1 className="mt-8 text-3xl font-medium tracking-tight text-white">Create account</h1>
       <p className="mt-2 text-sm text-zinc-400">Your name is shown on the call.</p>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
