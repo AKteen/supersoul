@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatPanel } from "@/components/ChatPanel";
 import { Controls } from "@/components/Controls";
+import { ErrorCard } from "@/components/ErrorCard";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { VideoGrid } from "@/components/VideoGrid";
@@ -234,7 +235,14 @@ export default function RoomCall({ slug }: RoomCallProps) {
       setInCall(true);
       setStatus("Connected");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Join failed");
+      const raw = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Join failed";
+      const disabled = /TRACK_IS_DISABLED/i.test(raw);
+      const message = disabled
+        ? /track-mic/i.test(raw) || !micOn
+          ? "The mic is disabled."
+          : "The camera is disabled."
+        : raw;
+      setError(message);
       setStatus("Ready");
     } finally {
       setJoining(false);
@@ -327,7 +335,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
           <p className="text-sm text-zinc-500">{slug}</p>
           <p className="mt-6 text-xs uppercase tracking-[0.16em] text-zinc-500">Your name</p>
           <p className="mt-1 rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-sm">{selfName}</p>
-          {error ? <p className="mt-4 text-sm text-zinc-300">{error}</p> : null}
+          <ErrorCard message={error} className="mt-4" />
           <button
             type="button"
             onClick={() => void enterCall()}
@@ -363,7 +371,9 @@ export default function RoomCall({ slug }: RoomCallProps) {
         </p>
       </header>
 
-      {error ? <p className="px-6 text-sm text-zinc-300">{error}</p> : null}
+      <div className="px-6">
+        <ErrorCard message={error} />
+      </div>
 
       <div className={`grid min-h-0 flex-1 gap-4 px-6 pb-4 ${chatOpen ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
         <div className="flex items-center justify-center">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { ErrorCard } from "@/components/ErrorCard";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { ApiError, api } from "@/lib/api";
@@ -68,7 +69,7 @@ export default function SignupPage() {
             className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-white outline-none focus:border-white/30"
           />
         </label>
-        {error ? <p className="text-sm text-zinc-300">{error}</p> : null}
+        <ErrorCard message={error} />
         <button
           type="submit"
           disabled={loading}
