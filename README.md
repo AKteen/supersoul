@@ -2,6 +2,8 @@
 
 One-to-one and one-to-many video calling with JWT auth, Agora RTC + Chat, call logs, and Redis presence.
 
+Live app: https://supersoul-five.vercel.app/
+
 Monorepo at the repository root. Live media never touches our API — browsers talk to Agora with tokens minted by FastAPI.
 
 ```
@@ -82,7 +84,9 @@ Backend: [`backend/.env.example`](backend/.env.example). Frontend: [`frontend/.e
 
 Postgres only. Render may hand the API a `postgres://` URL; startup rewrites it to `postgresql+asyncpg` and enables SSL when `sslmode=require` is set. The API container runs `alembic upgrade head` before uvicorn.
 
-**Render** (API, Postgres, Redis): Blueprint is [`render.yaml`](render.yaml). In the dashboard, fill `JWT_SECRET`, `CORS_ORIGINS`, and the `AGORA_*` values. `CORS_ORIGINS` is the Vercel origin, for example `https://supersoul.vercel.app`.
+**Live site:** https://supersoul-five.vercel.app/
+
+**Render** (API, Postgres, Redis): Blueprint is [`render.yaml`](render.yaml). In the dashboard, fill `JWT_SECRET`, `CORS_ORIGINS`, and the `AGORA_*` values. `CORS_ORIGINS` is `https://supersoul-five.vercel.app`.
 
 **Vercel** (Next.js): set the project root to `frontend`. Set these at build time:
 

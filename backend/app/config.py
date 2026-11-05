@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -24,6 +25,27 @@ def normalize_database_url(url: str) -> tuple[str, dict]:
         connect_args["ssl"] = True
     cleaned = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
     return cleaned, connect_args
+
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _reject_localhost_on_render(database_url: str, redis_url: str) -> None:
+    """Render sets RENDER=true. A localhost URL there means the dashboard value was missed."""
+    if not os.environ.get("RENDER"):
+        return
+    db_host = urlsplit(normalize_database_url(database_url)[0]).hostname or ""
+    redis_host = urlsplit(redis_url).hostname or ""
+    if db_host in _LOCAL_HOSTS:
+        raise RuntimeError(
+            "DATABASE_URL points at localhost. On the Render web service, set DATABASE_URL "
+            "to the Postgres Internal Database URL. Do not paste backend/.env."
+        )
+    if redis_host in _LOCAL_HOSTS:
+        raise RuntimeError(
+            "REDIS_URL points at localhost. On the Render web service, set REDIS_URL "
+            "to the Key Value internal connection string."
+        )
 
 
 class Settings(BaseSettings):
@@ -60,4 +82,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    _reject_localhost_on_render(settings.database_url, settings.redis_url)
+    return settings
