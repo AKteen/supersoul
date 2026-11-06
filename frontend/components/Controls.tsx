@@ -7,9 +7,11 @@ import { Icon } from "@/components/Icon";
 type ControlsProps = {
   micOn: boolean;
   camOn: boolean;
+  sharing: boolean;
   chatOpen: boolean;
   onToggleMic: () => void;
   onToggleCam: () => void;
+  onToggleScreen: () => void;
   onToggleChat: () => void;
   onLeave: () => void;
 };
@@ -49,9 +51,11 @@ function RoundButton({
 export function Controls({
   micOn,
   camOn,
+  sharing,
   chatOpen,
   onToggleMic,
   onToggleCam,
+  onToggleScreen,
   onToggleChat,
   onLeave,
 }: ControlsProps) {
@@ -62,6 +66,9 @@ export function Controls({
       </RoundButton>
       <RoundButton label={camOn ? "Turn camera off" : "Turn camera on"} onClick={onToggleCam} inverted={!camOn}>
         <Icon name={camOn ? "videocam" : "videocam_off"} filled={!camOn} />
+      </RoundButton>
+      <RoundButton label={sharing ? "Stop sharing" : "Share screen"} onClick={onToggleScreen} inverted={sharing}>
+        <Icon name={sharing ? "stop_screen_share" : "screen_share"} filled={sharing} />
       </RoundButton>
       <RoundButton label={chatOpen ? "Hide chat" : "Show chat"} onClick={onToggleChat} inverted={chatOpen}>
         <Icon name="chat" filled={chatOpen} />

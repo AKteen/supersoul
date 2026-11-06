@@ -111,6 +111,8 @@ async def join_room(
     try:
         await agora.register_chat_user(current_user.chat_username)
         rtc_token = agora.build_rtc_token(channel=room.slug, uid=current_user.agora_uid)
+        share_uid = agora.screen_uid(current_user.agora_uid)
+        screen_rtc_token = agora.build_rtc_token(channel=room.slug, uid=share_uid)
         chat_token = agora.build_chat_user_token(current_user.chat_username)
     except AgoraConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -122,6 +124,8 @@ async def join_room(
         channel=room.slug,
         rtc_token=rtc_token,
         uid=current_user.agora_uid,
+        screen_rtc_token=screen_rtc_token,
+        screen_uid=share_uid,
         chat_token=chat_token,
         chat_user=current_user.chat_username,
         chat_room_id=room.chat_room_id,

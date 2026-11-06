@@ -69,6 +69,8 @@ export type JoinPayload = {
   channel: string;
   rtc_token: string;
   uid: number;
+  screen_rtc_token: string;
+  screen_uid: number;
   chat_token: string;
   chat_user: string;
   chat_room_id: string | null;

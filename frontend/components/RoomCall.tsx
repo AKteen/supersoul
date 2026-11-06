@@ -3,6 +3,7 @@
 import AgoraRTC, {
   type IAgoraRTCClient,
   type ICameraVideoTrack,
+  type ILocalVideoTrack,
   type IMicrophoneAudioTrack,
   type IRemoteVideoTrack,
 } from "agora-rtc-sdk-ng";
@@ -30,15 +31,32 @@ type RoomCallProps = {
 };
 
 const TAKEN_OVER = "This meeting is open somewhere else, so this window disconnected.";
+const SCREEN_UID_OFFSET = 1_000_000_000;
 
 function isUidConflict(raw: string): boolean {
   return /UID_CONFLICT|UID_BANNED/i.test(raw);
+}
+
+function screenOwnerUid(uid: string | number): number | null {
+  const value = Number(uid);
+  if (!Number.isFinite(value) || value < SCREEN_UID_OFFSET) return null;
+  return value - SCREEN_UID_OFFSET;
+}
+
+function errorText(err: unknown): string {
+  const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code ?? "") : "";
+  const message = err instanceof Error ? err.message : "";
+  return `${code} ${message}`.trim();
 }
 
 export default function RoomCall({ slug }: RoomCallProps) {
   const router = useRouter();
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localTracksRef = useRef<[IMicrophoneAudioTrack, ICameraVideoTrack] | null>(null);
+  const screenClientRef = useRef<IAgoraRTCClient | null>(null);
+  const screenTrackRef = useRef<ILocalVideoTrack | null>(null);
+  const screenStoppingRef = useRef(false);
+  const releaseScreenRef = useRef<() => Promise<void>>(async () => {});
 
   const [room, setRoom] = useState<Room | null>(null);
   const [joinInfo, setJoinInfo] = useState<JoinPayload | null>(null);
@@ -55,6 +73,8 @@ export default function RoomCall({ slug }: RoomCallProps) {
   const [chatOpen, setChatOpen] = useState(true);
   const [joining, setJoining] = useState(false);
   const [canRejoin, setCanRejoin] = useState(false);
+  const [screenVideo, setScreenVideo] = useState<ILocalVideoTrack | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const leftRef = useRef(false);
   const joinedRef = useRef(false);
@@ -69,7 +89,48 @@ export default function RoomCall({ slug }: RoomCallProps) {
     }
   }, [slug]);
 
+  const releaseScreen = useCallback(async () => {
+    if (screenStoppingRef.current) return;
+    screenStoppingRef.current = true;
+    const track = screenTrackRef.current;
+    const client = screenClientRef.current;
+    screenTrackRef.current = null;
+    screenClientRef.current = null;
+    setScreenVideo(null);
+    setSharing(false);
+    if (client && track) {
+      try {
+        await client.unpublish(track);
+      } catch {
+        /* already unpublished */
+      }
+    }
+    if (track) {
+      try {
+        track.stop();
+      } catch {
+        /* already stopped */
+      }
+      try {
+        track.close();
+      } catch {
+        /* already closed */
+      }
+    }
+    if (client) {
+      client.removeAllListeners();
+      try {
+        await client.leave();
+      } catch {
+        /* already left */
+      }
+    }
+    screenStoppingRef.current = false;
+  }, []);
+  releaseScreenRef.current = releaseScreen;
+
   const cleanup = useCallback(async () => {
+    await releaseScreen();
     await notifyLeave();
     const tracks = localTracksRef.current;
     if (tracks) {
@@ -91,7 +152,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
       }
       clientRef.current = null;
     }
-  }, [notifyLeave]);
+  }, [notifyLeave, releaseScreen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,6 +253,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
   }, [slug]);
 
   const dropClient = useCallback(async () => {
+    await releaseScreen();
     const client = clientRef.current;
     clientRef.current = null;
     if (!client) return;
@@ -202,7 +264,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
       /* already gone */
     }
     setRemotePeers([]);
-  }, []);
+  }, [releaseScreen]);
 
   const enterCall = useCallback(async () => {
     if (joining || joinedRef.current) return;
@@ -217,6 +279,7 @@ export default function RoomCall({ slug }: RoomCallProps) {
 
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       clientRef.current = client;
+      const isOwnScreen = (uid: string | number) => Number(uid) === joined.screen_uid;
 
       const patchPeer = (uid: string | number, patch: Partial<RemotePeer>) => {
         setRemotePeers((prev) => {
@@ -229,9 +292,11 @@ export default function RoomCall({ slug }: RoomCallProps) {
       };
 
       client.on("user-joined", (user) => {
+        if (isOwnScreen(user.uid)) return;
         patchPeer(user.uid, { track: null });
       });
       client.on("user-published", async (user, mediaType) => {
+        if (isOwnScreen(user.uid)) return;
         await client.subscribe(user, mediaType);
         if (mediaType === "video") patchPeer(user.uid, { track: user.videoTrack ?? null, camOff: false });
         if (mediaType === "audio" && user.audioTrack) {
@@ -240,20 +305,24 @@ export default function RoomCall({ slug }: RoomCallProps) {
         }
       });
       client.on("user-unpublished", (user, mediaType) => {
+        if (isOwnScreen(user.uid)) return;
         if (mediaType === "video") patchPeer(user.uid, { track: null, camOff: true });
         if (mediaType === "audio") patchPeer(user.uid, { micMuted: true });
       });
       client.on("user-info-updated", (uid, msg) => {
+        if (isOwnScreen(uid)) return;
         if (msg === "mute-audio") patchPeer(uid, { micMuted: true });
         if (msg === "unmute-audio") patchPeer(uid, { micMuted: false });
         if (msg === "mute-video") patchPeer(uid, { camOff: true });
         if (msg === "unmute-video") patchPeer(uid, { camOff: false });
       });
       client.on("user-left", (user) => {
+        if (isOwnScreen(user.uid)) return;
         setRemotePeers((prev) => prev.filter((peer) => peer.uid !== user.uid));
       });
       client.on("connection-state-change", (cur, _prev, reason) => {
         if (cur === "DISCONNECTED" && reason === "UID_BANNED") {
+          void releaseScreenRef.current();
           joinedRef.current = false;
           setInCall(false);
           setCanRejoin(true);
@@ -353,6 +422,46 @@ export default function RoomCall({ slug }: RoomCallProps) {
     setCamOn(next);
   }, [camOn]);
 
+  const toggleScreen = useCallback(async () => {
+    if (screenTrackRef.current) {
+      await releaseScreen();
+      return;
+    }
+    if (!joinInfo || !joinedRef.current) return;
+    let track: ILocalVideoTrack | null = null;
+    try {
+      track = await AgoraRTC.createScreenVideoTrack({}, "disable");
+      const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      screenClientRef.current = client;
+      screenTrackRef.current = track;
+      track.on("track-ended", () => {
+        void releaseScreenRef.current();
+      });
+      client.on("connection-state-change", (cur, _prev, reason) => {
+        if (cur === "DISCONNECTED" && reason === "UID_BANNED") {
+          void releaseScreenRef.current();
+        }
+      });
+      await client.join(joinInfo.app_id, joinInfo.channel, joinInfo.screen_rtc_token, joinInfo.screen_uid);
+      await client.publish(track);
+      if (screenClientRef.current !== client) {
+        try {
+          await client.leave();
+        } catch {
+          /* share was cancelled while connecting */
+        }
+        return;
+      }
+      setScreenVideo(track);
+      setSharing(true);
+    } catch (err) {
+      await releaseScreen();
+      const raw = errorText(err);
+      if (/OPERATION_ABORTED|PERMISSION_DENIED/i.test(raw)) return;
+      setError("Could not share the screen.");
+    }
+  }, [joinInfo, releaseScreen]);
+
   const leave = useCallback(async () => {
     await cleanup();
     router.push("/dashboard");
@@ -368,15 +477,39 @@ export default function RoomCall({ slug }: RoomCallProps) {
         micMuted: !micOn,
         camOff: !camOn,
       },
-      ...remotePeers.map((peer) => ({
-        id: String(peer.uid),
-        label: namesByUid[String(peer.uid)] ?? "Guest",
-        track: peer.track,
-        micMuted: peer.micMuted,
-        camOff: peer.camOff || peer.track == null,
-      })),
+      ...(screenVideo
+        ? [
+            {
+              id: "local-screen",
+              label: "Your screen",
+              track: screenVideo,
+              micMuted: false,
+              camOff: false,
+            },
+          ]
+        : []),
+      ...remotePeers.map((peer) => {
+        const owner = screenOwnerUid(peer.uid);
+        if (owner != null) {
+          const name = namesByUid[String(owner)] ?? "Guest";
+          return {
+            id: String(peer.uid),
+            label: `${name}'s screen`,
+            track: peer.track,
+            micMuted: false,
+            camOff: false,
+          };
+        }
+        return {
+          id: String(peer.uid),
+          label: namesByUid[String(peer.uid)] ?? "Guest",
+          track: peer.track,
+          micMuted: peer.micMuted,
+          camOff: peer.camOff || peer.track == null,
+        };
+      }),
     ],
-    [camOn, localVideo, micOn, namesByUid, remotePeers, selfName],
+    [camOn, localVideo, micOn, namesByUid, remotePeers, screenVideo, selfName],
   );
 
   if (!inCall) {
@@ -497,9 +630,11 @@ export default function RoomCall({ slug }: RoomCallProps) {
         <Controls
           micOn={micOn}
           camOn={camOn}
+          sharing={sharing}
           chatOpen={chatOpen}
           onToggleMic={() => void toggleMic()}
           onToggleCam={() => void toggleCam()}
+          onToggleScreen={() => void toggleScreen()}
           onToggleChat={() => setChatOpen((open) => !open)}
           onLeave={() => void leave()}
         />

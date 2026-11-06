@@ -47,6 +47,8 @@ async def test_join_returns_agora_tokens(client: AsyncClient) -> None:
     assert payload["chat_user"]
     assert payload["chat_room_id"] == "mock-chat-room-id"
     assert isinstance(payload["uid"], int)
+    assert payload["screen_uid"] == payload["uid"] + 1_000_000_000
+    assert payload["screen_rtc_token"]
 
 
 @pytest.mark.asyncio

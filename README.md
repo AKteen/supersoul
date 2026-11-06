@@ -123,5 +123,5 @@ Full plan: [PLAN.md](PLAN.md).
 ## Known limitations
 
 - Chat needs Agora Chat enabled + App Key / REST host.
-- Recording / STT / screen share are Phase 8 bonus.
+- Recording / STT are Phase 8 bonus. Screen share is available in the call.
 - Docker must be installed for `docker compose up` on a clean clone.

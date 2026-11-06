@@ -68,6 +68,8 @@ class JoinResponse(BaseModel):
     channel: str
     rtc_token: str
     uid: int
+    screen_rtc_token: str
+    screen_uid: int
     chat_token: str
     chat_user: str
     chat_room_id: str | None

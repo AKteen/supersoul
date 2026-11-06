@@ -12,6 +12,8 @@ from app.vendor.agora import ChatTokenBuilder, Role_Publisher, RtcTokenBuilder
 logger = logging.getLogger(__name__)
 
 TOKEN_TTL_SECONDS = 3600
+SCREEN_UID_OFFSET = 1_000_000_000
+_AGORA_UID_MAX = 2**32 - 1
 
 
 class AgoraConfigError(RuntimeError):
@@ -35,6 +37,13 @@ def _require_chat_rest() -> tuple[str, str, str]:
     if not settings.agora_chat_rest_host:
         raise AgoraConfigError("AGORA_CHAT_REST_HOST is required for Chat REST")
     return app_id, app_certificate, settings.agora_chat_rest_host.rstrip("/")
+
+
+def screen_uid(agora_uid: int) -> int:
+    uid = agora_uid + SCREEN_UID_OFFSET
+    if uid > _AGORA_UID_MAX:
+        raise AgoraConfigError("screen uid is outside Agora's 32-bit range")
+    return uid
 
 
 def build_rtc_token(*, channel: str, uid: int) -> str:
