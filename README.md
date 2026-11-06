@@ -4,12 +4,13 @@ One-to-one and one-to-many video calling with JWT auth, Agora RTC + Chat, call l
 
 Live app: https://supersoul-five.vercel.app/
 
-Current version: **1.0.0** (shown as `v1.0.0` in the top-right corner of the app).
+Current version: **1.1.0** (shown as `v1.1.0` in the top-right corner of the app).
 
 ## Versions
 
 | Version | What shipped |
 |---|---|
+| 1.1.0 | Screen share. Join with the mic or camera off. Chat shows people's names. Sky blue New meeting button. Error card uses the darker red with black text. |
 | 1.0.0 | Live site on Vercel. Dark meeting UI, SuperSoul logo, join-by-link, pre-join lobby, in-call chat, mute and camera-off icons, mic-disabled and already-in-meeting messages with rejoin, split backend and frontend env, Render API with Postgres. |
 | 0.1.0 | Phases 0–7: JWT auth, rooms, Agora RTC and Chat tokens, call logs, Redis presence, rate limits, Docker Compose. |
 
